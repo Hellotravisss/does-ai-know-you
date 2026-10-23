@@ -9,6 +9,8 @@ npx does-ai-know-you --brand "甜屑 Sweet Crumb" --site sweetcrumb.example \
   --ask "本拿比哪家生日蛋糕好" --ask "best bakery in Burnaby for birthday cakes"
 ```
 
+> 还没发布到 npm 时，可以直接从 GitHub 运行：`npx github:Hellotravisss/does-ai-know-you --brand …`
+
 ## 为什么做这个
 
 大多数「AI 可见度」工具，包括免费的 SEO 插件，都是看你的网站「像不像会被引用」，然后打个分。那是猜的。这个工具直接去问 AI，原话照录。

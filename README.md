@@ -9,6 +9,8 @@ npx does-ai-know-you --brand "Sweet Crumb 甜屑" --site sweetcrumb.example \
   --ask "best bakery in Burnaby for birthday cakes" --ask "本拿比哪家生日蛋糕好"
 ```
 
+> Not on npm yet? Run it straight from GitHub: `npx github:Hellotravisss/does-ai-know-you --brand …`
+
 ```
 "Sweet Crumb 甜屑" — named in how many answers, per engine and question
 
