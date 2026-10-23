@@ -11,20 +11,33 @@ npx does-ai-know-you --brand "Sweet Crumb 甜屑" --site sweetcrumb.example \
 
 > Not on npm yet? Run it straight from GitHub: `npx github:Hellotravisss/does-ai-know-you --brand …`
 
-```
-"Sweet Crumb 甜屑" — named in how many answers, per engine and question
 
-Engine            Q1   Q2  named  links to site
-ChatGPT          1/1  0/1     50%      0%
-Perplexity       1/1  1/1    100%     50%
-Gemini           1/1  0/1     50%      0%
-  Western engines              67%
-DeepSeek         0/1  0/1      0%      0%
-Kimi             0/1  1/1     50%      0%
-  Chinese engines              25%
-```
+## A real result
 
-*(Illustrative output for a made-up bakery — run it on your own brand for real numbers.)*
+[SAVORHILL 山也](https://savorhill.ca), a bakery and tea house in Richmond, BC, measured by Avowd in October 2026: 20 customer questions (half English, half Chinese, e.g. *"Best bubble tea in Richmond BC"*, *"Where can I buy meat floss cake (肉松蛋糕) in Richmond BC?"*), each asked twice on all 11 engines, 440 answers.
+
+| Engine | Named the bakery | Linked to savorhill.ca |
+| --- | --- | --- |
+| ChatGPT | 50% | 47.5% |
+| Perplexity | 20% | 20% |
+| Claude | 27.5% | 20% |
+| Gemini | 42.5% | 27.5% |
+| Grok | 47.5% | 37.5% |
+| Muse (Meta) | 35% | 0% |
+| DeepSeek | 5% | 0% |
+| Kimi | 22.5% | 0% |
+| Qwen 通义 | 5% | 0% |
+| Doubao 豆包 | 5% | 0% |
+| Yuanbao 元宝 | 5% | 0% |
+
+Published with the owner's permission. **Read the Chinese rows carefully:** in this run Qwen, Doubao and Yuanbao answered *without* live web search (it was switched on a few hours later), and DeepSeek's API has no web search at all. So those rows show what the models already knew, while every Western engine searched the web. November's run, with search on for all three, is the fair comparison — we'll update this table.
+
+Reproduce part of it yourself:
+
+```bash
+npx does-ai-know-you --brand "SAVORHILL 山也" --site savorhill.ca \
+  --ask "Best bubble tea in Richmond BC" --ask "列治文哪家奶茶好喝" --reps 2
+```
 
 ## Why this exists
 

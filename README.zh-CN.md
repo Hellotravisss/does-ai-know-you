@@ -11,6 +11,33 @@ npx does-ai-know-you --brand "甜屑 Sweet Crumb" --site sweetcrumb.example \
 
 > 还没发布到 npm 时，可以直接从 GitHub 运行：`npx github:Hellotravisss/does-ai-know-you --brand …`
 
+## 一个真实结果
+
+[SAVORHILL 山也](https://savorhill.ca)，列治文的烘焙茶饮店，2026 年 10 月由 Avowd 正式测量：20 道客人会问的题（中英文各半，例如「Best bubble tea in Richmond BC」「Where can I buy meat floss cake (肉松蛋糕) in Richmond BC?」），每题在 11 家 AI 上各问两遍，共 440 条回答。
+
+| 引擎 | 提到这家店 | 附上 savorhill.ca 链接 |
+| --- | --- | --- |
+| ChatGPT | 50% | 47.5% |
+| Perplexity | 20% | 20% |
+| Claude | 27.5% | 20% |
+| Gemini | 42.5% | 27.5% |
+| Grok | 47.5% | 37.5% |
+| Muse (Meta) | 35% | 0% |
+| DeepSeek | 5% | 0% |
+| Kimi | 22.5% | 0% |
+| Qwen 通义 | 5% | 0% |
+| Doubao 豆包 | 5% | 0% |
+| Yuanbao 元宝 | 5% | 0% |
+
+经店主同意公开。**中文这几行要仔细看：** 这一轮通义、豆包、元宝是在**没有联网搜索**的情况下回答的（几小时后才开启），DeepSeek 的 API 本身就不能联网。所以这几行反映的是模型自己原本知道多少，而西方引擎都联网搜了。公平的对比要看 11 月那一轮（三家都开了联网），到时我们会更新这张表。
+
+自己复现其中一部分：
+
+```bash
+npx does-ai-know-you --brand "SAVORHILL 山也" --site savorhill.ca \
+  --ask "列治文哪家奶茶好喝" --ask "Best bubble tea in Richmond BC" --reps 2
+```
+
 ## 为什么做这个
 
 大多数「AI 可见度」工具，包括免费的 SEO 插件，都是看你的网站「像不像会被引用」，然后打个分。那是猜的。这个工具直接去问 AI，原话照录。
