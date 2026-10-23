@@ -1,0 +1,20 @@
+{
+  "name": "does-ai-know-you",
+  "version": "0.1.0",
+  "description": "Do ChatGPT, Gemini, Claude, Perplexity, Grok, DeepSeek, Kimi, Qwen, Doubao and Yuanbao recommend your brand? Ask them the questions your customers ask — Western and Chinese AI side by side. By Avowd.",
+  "type": "module",
+  "bin": { "does-ai-know-you": "dist/cli.mjs" },
+  "files": ["dist", "skill", "README.md", "README.zh-CN.md", "LICENSE"],
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "esbuild src/cli.ts --bundle --platform=node --format=esm --target=node20 --outfile=dist/cli.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx test/match.test.ts"
+  },
+  "keywords": ["geo", "generative-engine-optimization", "aeo", "ai-search", "ai-visibility", "chatgpt", "deepseek", "kimi", "doubao", "qwen", "perplexity", "gemini", "claude", "llm-seo", "brand-monitoring", "claude-code"],
+  "homepage": "https://github.com/Hellotravisss/does-ai-know-you",
+  "repository": { "type": "git", "url": "git+https://github.com/Hellotravisss/does-ai-know-you.git" },
+  "author": "Qi (Travis) Zhang <info@avowd.ai> (https://avowd.ai)",
+  "license": "MIT",
+  "devDependencies": { "esbuild": "^0.25.0", "typescript": "^5.6.0", "tsx": "^4.19.0", "@types/node": "^22.0.0" }
+}
