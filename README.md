@@ -1,5 +1,15 @@
 # does-ai-know-you
 
+<p align="center"><img src="assets/hero.svg" alt="Does AI know you? Share of AI answers that named one bakery, across 11 engines" width="100%"></p>
+
+<p align="center">
+<img alt="MIT" src="https://img.shields.io/badge/license-MIT-1A1408?style=flat-square">
+<img alt="11 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%205%20Chinese-F0531C?style=flat-square">
+<img alt="web search on" src="https://img.shields.io/badge/web%20search-on-F7C63F?style=flat-square">
+<img alt="node" src="https://img.shields.io/badge/node-%E2%89%A520-7A6B4C?style=flat-square">
+</p>
+
+
 **Ask ChatGPT, Claude, Gemini, Perplexity, Grok — and DeepSeek, Kimi, Qwen, Doubao, Yuanbao — the questions your customers ask. See which ones name your brand.**
 
 [中文说明](README.zh-CN.md)
@@ -10,7 +20,6 @@ npx does-ai-know-you --brand "Sweet Crumb 甜屑" --site sweetcrumb.example \
 ```
 
 > Not on npm yet? Run it straight from GitHub: `npx github:Hellotravisss/does-ai-know-you --brand …`
-
 
 ## A real result
 
@@ -31,6 +40,8 @@ npx does-ai-know-you --brand "Sweet Crumb 甜屑" --site sweetcrumb.example \
 | Yuanbao 元宝 | 5% | 0% |
 
 Published with the owner's permission. **Read the Chinese rows carefully:** in this run Qwen, Doubao and Yuanbao answered *without* live web search (it was switched on a few hours later), and DeepSeek's API has no web search at all. So those rows show what the models already knew, while every Western engine searched the web. November's run, with search on for all three, is the fair comparison — we'll update this table.
+
+<p align="center"><img src="assets/demo.svg" alt="Terminal: does-ai-know-you run on SAVORHILL, 440 answers" width="100%"></p>
 
 Reproduce part of it yourself:
 

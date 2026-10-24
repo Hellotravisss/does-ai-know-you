@@ -1,5 +1,15 @@
 # does-ai-know-you · AI 认识你吗？
 
+<p align="center"><img src="assets/hero.svg" alt="AI 认识你吗？11 家 AI 引擎里，一家面包店被提到的比例" width="100%"></p>
+
+<p align="center">
+<img alt="MIT" src="https://img.shields.io/badge/license-MIT-1A1408?style=flat-square">
+<img alt="11 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%205%20Chinese-F0531C?style=flat-square">
+<img alt="web search on" src="https://img.shields.io/badge/web%20search-on-F7C63F?style=flat-square">
+<img alt="node" src="https://img.shields.io/badge/node-%E2%89%A520-7A6B4C?style=flat-square">
+</p>
+
+
 **拿客户真正会问的问题，去问 ChatGPT、Claude、Gemini、Perplexity、Grok，以及 DeepSeek、Kimi、通义千问、豆包、元宝，看哪家 AI 会推荐你的品牌。**
 
 [English](README.md)
@@ -30,6 +40,8 @@ npx does-ai-know-you --brand "甜屑 Sweet Crumb" --site sweetcrumb.example \
 | Yuanbao 元宝 | 5% | 0% |
 
 经店主同意公开。**中文这几行要仔细看：** 这一轮通义、豆包、元宝是在**没有联网搜索**的情况下回答的（几小时后才开启），DeepSeek 的 API 本身就不能联网。所以这几行反映的是模型自己原本知道多少，而西方引擎都联网搜了。公平的对比要看 11 月那一轮（三家都开了联网），到时我们会更新这张表。
+
+<p align="center"><img src="assets/demo.svg" alt="终端演示：对 SAVORHILL 跑 440 条回答" width="100%"></p>
 
 自己复现其中一部分：
 
