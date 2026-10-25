@@ -617,6 +617,9 @@ async function kimi(prompt: string): Promise<EngineAnswer> {
     // Out of turns or time: one last call WITHOUT the tool, so the model must answer from what it
     // already found instead of asking for yet another search (2026-10-05: 4 search turns, empty text).
     const last = i === MAX_TURNS - 1 || Date.now() > loopDeadline;
+    // Say "answer now" on that last turn: without it k2.6 often spends the turn announcing another
+    // search ("让我再搜索一下…") and that announcement would be read as its answer (2026-10-25).
+    if (last) messages.push({ role: "user", content: ANSWER_NOW });
     const r = await fetchWithTimeout(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
@@ -649,11 +652,15 @@ async function kimi(prompt: string): Promise<EngineAnswer> {
   return { text, links, ...(usedIn + usedOut > 0 ? { usage: { in: usedIn, out: usedOut, ...(searches ? { searches } : {}) } } : {}) };
 }
 
-/* ── Tencent Yuanbao / Hunyuan (腾讯元宝 · 混元) — OpenAI-compatible (VERIFY w/ key) ──
- * A fifth CN engine that answers from the model, like the other four — no retrieval surfaced.
- * It was added expecting sources back (the Hunyuan-native API documents search_info), but the
- * TokenHub gateway does not accept those parameters, so link-rate stays n/a across the Chinese
- * market. Measured, not assumed: 200 OK, 985 characters, zero links.
+/* ── Tencent Yuanbao / Hunyuan (腾讯元宝 · 混元) — TokenHub chat completions + web_search ──
+ * Searches the live web since 2026-10-01 through TokenHub's web_search tool (web_search_options
+ * below; search_source "lite" = 轻量版 ¥7/1k, 标准版 ¥12/1k). The standalone 元宝搜索 API opened
+ * 2026-10-20 (wsa.tencentcloudapi.com · SearchPro, same lite/standard/flagship tier names — by all
+ * appearances the same search) needs a separate Tencent Cloud SecretId/SecretKey (TC3 signing) and
+ * a 元宝搜索 console activation; it is NOT wired in, because this path already searches. Re-verified 2026-10-25: a post-cutoff question came back correct with
+ * 4 source URLs and usage.tool_usage.web_search_call = 1.
+ * History: until 2026-10-01 the native Hunyuan params below were accepted and silently dropped
+ * (200 OK, 985 characters, zero links), and it measured the model's memory like the others.
  *
  * Included because of where it lives: Yuanbao is inside WeChat, and a Richmond customer looking
  * for a dentist opens WeChat far more often than X. `enable_enhancement` turns on live search;
@@ -721,29 +728,132 @@ async function hunyuan(prompt: string): Promise<EngineAnswer> {
   return { text, links, usage: u ? { ...u, searches } : { in: 0, out: 0, searches } };
 }
 
-/* ── DeepSeek — chat completions (OpenAI-compatible) (VERIFY w/ key) ───────
- * The public API has no built-in web search, so this measures what the MODEL knows about a
- * brand rather than what it retrieves. That's still the question buyers ask ("does it know me?"),
- * but it means links[] stays empty — same as the other CN engines. */
+/* ── DeepSeek — chat completions + a web_search tool backed by DeepSeek's own /v1/tools/search ──
+ * DeepSeek opened its in-house search engine as an API on 2026-10-17 (api-docs.deepseek.com/guides/
+ * search): POST /v1/tools/search, same Bearer key, { query ≤128 chars, count, ori_question } →
+ * results[] of { title, url, summary, site_name, date }. $0.75 per 1,000 successful requests (empty
+ * results are free). Like kimi(), the model decides whether and what to search through an ordinary
+ * function tool; we run each query and hand the results back. Thinking mode stays on; with `tools`
+ * present its reasoning_content must be passed back on later turns — pushing the message whole does. */
+const DEEPSEEK_SEARCH_URL = "https://api.deepseek.com/v1/tools/search";
+
+/** One DeepSeek search. `billed` = the provider charges for it (200 + non-empty results).
+ *  Account failures (401 key, 402 balance) THROW: a search that silently stops working would leave
+ *  DeepSeek answering from memory again — a different instrument wearing the same name. */
+export async function deepseekSearch(key: string, query: string, question: string): Promise<{ content: string; urls: string[]; billed: boolean }> {
+  const body = JSON.stringify({ query: query.trim().slice(0, 128), count: 10, ori_question: question.trim().slice(0, 128) || undefined });
+  let r: Response | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    r = await fetchWithTimeout(process.env.DEEPSEEK_SEARCH_URL || DEEPSEEK_SEARCH_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body,
+    }, 25000).catch((e) => { if (attempt) throw e; return undefined; });
+    // 408/429/5xx are documented as "wait and retry"; once is enough inside a cell's budget.
+    if (r && !(r.status === 408 || r.status === 429 || r.status >= 500)) break;
+    if (!attempt) await new Promise((res) => setTimeout(res, 1500));
+  }
+  if (!r) return { content: JSON.stringify({ error: "search unavailable" }), urls: [], billed: false };
+  if (r.status === 401 || r.status === 402) throw new Error(`DeepSeek search ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) return { content: JSON.stringify({ error: `search failed (${r.status})` }), urls: [], billed: false };
+  const d: unknown = await r.json();
+  const results = arr(get(d, "results")).slice(0, 10);
+  const urls: string[] = [];
+  const compact = results.map((it) => {
+    const url = str(get(it, "url"));
+    if (url && !urls.includes(url)) urls.push(url);
+    return { title: str(get(it, "title")), url, site: str(get(it, "site_name")), date: str(get(it, "date")),
+      text: (str(get(it, "summary")) || str(get(it, "snippet"))).slice(0, 800) };
+  });
+  return { content: JSON.stringify({ results: compact }), urls, billed: results.length > 0 };
+}
+
 async function deepseek(prompt: string): Promise<EngineAnswer> {
+  return deepseekWithSearch(prompt);
+}
+
+const DEEPSEEK_SEARCH_TOOL = {
+  type: "function",
+  function: {
+    name: "web_search",
+    description: "Search the web for up-to-date information. Use it for anything about specific businesses, places, prices or recent facts.",
+    parameters: { type: "object", properties: { query: { type: "string", description: "The search query (at most 128 characters)" } }, required: ["query"] },
+  },
+};
+
+const ANSWER_NOW = "Search limit reached. Answer the original question now, using only the search results above. Do not search again. / 已达搜索上限：请直接根据以上搜索结果回答原问题，不要再搜索。";
+const DSML = /<[｜|]+\s*DSML\s*[｜|]+/;
+/** Cut a leaked DSML tool-call block (and anything after it) out of answer text. */
+export function stripDsml(t: string): string {
+  const m = DSML.exec(t);
+  return m ? t.slice(0, m.index).trim() : t;
+}
+
+async function deepseekWithSearch(prompt: string): Promise<EngineAnswer> {
   const key = process.env.DEEPSEEK_API_KEY as string;
-  // Model ids here get retired without warning and the API rejects the old name outright
-  // (`deepseek-chat` → 400 as of 2026-07), which shows up as a silent 0% for this engine in a
-  // measurement rather than as an obvious outage. Keep this default current, and override with
-  // DEEPSEEK_MODEL (…-flash trades some answer quality for latency) rather than editing code.
-  // deepseek-flash (V4.1 Flash, 2026-09-10). deepseek-v4-pro is retired 2026-09-14 12:00
-  // Beijing and silently re-routed to Flash after that — named explicitly here so the cost
-  // record states the model that actually answered rather than a retired one.
   const model = process.env.DEEPSEEK_MODEL || "deepseek-flash";
   const url = process.env.DEEPSEEK_URL || "https://api.deepseek.com/chat/completions";
-  const r = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: 0.3 }),
-  }, SLOW_TIMEOUT_MS.deepseek);
-  if (!r.ok) throw new Error(`DeepSeek ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const d: unknown = await r.json();
-  return { text: str(get(get(arr(get(d, "choices"))[0], "message"), "content")), links: [], usage: readUsage(d) };
+  const tools = [DEEPSEEK_SEARCH_TOOL];
+  const messages: unknown[] = [{ role: "user", content: prompt }];
+  let text = "";
+  const links: string[] = [];
+  // The whole loop must finish inside CELL_MS (210s, measure.ts), or the backstop kills the cell
+  // and the answer is lost after it was paid for. Each turn gets what is left of a 195s budget.
+  const loopDeadline = Date.now() + 195000;
+  let usedIn = 0, usedOut = 0, cached = 0, searches = 0;
+  let served: string | undefined;
+  const MAX_TURNS = 5;
+  for (let i = 0; i < MAX_TURNS; i++) {
+    const left = loopDeadline - Date.now();
+    // Out of turns or nearly out of time: one last call that may not search, so the model answers
+    // from what it already found (kimi's 2026-10-05 lesson: 4 search turns, empty text). tools stay
+    // in the body with tool_choice "none", plus an explicit "answer now" turn.
+    const last = i === MAX_TURNS - 1 || left < 60000;
+    const ask = async (body: Record<string, unknown>) => {
+      const r = await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+        body: JSON.stringify({ model, temperature: 0.3, ...body }),
+      }, Math.max(20000, Math.min(SLOW_TIMEOUT_MS.deepseek, loopDeadline + 10000 - Date.now())));
+      if (!r.ok) throw new Error(`DeepSeek ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      const d: unknown = await r.json();
+      const u = readUsage(d);
+      if (u) { usedIn += u.in; usedOut += u.out; cached += u.cached ?? 0; served = served ?? u.model; }
+      return d;
+    };
+    if (last) messages.push({ role: "user", content: ANSWER_NOW });
+    let d = await ask(last ? { messages, tools, tool_choice: "none" } : { messages, tools });
+    // 2026-10-25, live: with tool_choice "none" the model once wrote its next search as raw DSML
+    // markup ("<｜｜DSML｜｜ calls>…") in `content` — a tool call, not an answer. Ask once more with no
+    // tools at all; whatever markup survives is cut off rather than scored as answer text.
+    if (last && DSML.test(str(get(get(arr(get(d, "choices"))[0], "message"), "content")))) d = await ask({ messages });
+    const choice = arr(get(d, "choices"))[0];
+    const msg = get(choice, "message");
+    const content = stripDsml(str(get(msg, "content")));
+    // Keep only the FINAL answer; interim turns that end in tool_calls are not the answer.
+    if (content) text = content;
+    const calls = arr(get(msg, "tool_calls"));
+    if (last || str(get(choice, "finish_reason")) !== "tool_calls" || !calls.length) break;
+    messages.push(msg); // carries reasoning_content + tool_calls — both required on the next turn
+    const outs = await Promise.all(calls.map(async (tc) => {
+      const fn = get(tc, "function");
+      let query = "";
+      try { query = str(get(JSON.parse(str(get(fn, "arguments")) || "{}"), "query")); } catch { /* malformed args */ }
+      const out = query.trim() ? await deepseekSearch(key, query, prompt) : { content: JSON.stringify({ error: "empty query" }), urls: [] as string[], billed: false };
+      return { tc, fn, out };
+    }));
+    for (const { tc, fn, out } of outs) {
+      if (out.billed) searches++;
+      for (const l of out.urls) if (!links.includes(l)) links.push(l);
+      messages.push({ role: "tool", tool_call_id: str(get(tc, "id")), name: str(get(fn, "name")) || "web_search", content: out.content });
+    }
+  }
+  return {
+    text, links,
+    ...(usedIn + usedOut > 0 || searches
+      ? { usage: { in: usedIn, out: usedOut, ...(searches ? { searches } : {}), ...(cached ? { cached } : {}), ...(served ? { model: served } : {}) } }
+      : {}),
+  };
 }
 
 /* ── Doubao 豆包 (ByteDance, via Volcengine Ark) — OpenAI-compatible (VERIFY w/ key) ──
@@ -892,7 +1002,7 @@ export function activeEngines(market?: string, opts: { next?: boolean; probe?: b
   if (process.env.META_API_KEY && (instrumentSwitched(next) || opts.probe)) all.push({ id: "muse", label: "Muse", region: "west", citesSources: true, query: muse });
   if (process.env.ARK_API_KEY) all.push({ id: "doubao", label: "豆包", region: "cn", citesSources: true, query: doubao });
   if (process.env.DASHSCOPE_API_KEY) all.push({ id: "qwen", label: "通义千问", region: "cn", citesSources: false, query: qwen });
-  if (process.env.DEEPSEEK_API_KEY) all.push({ id: "deepseek", label: "DeepSeek", region: "cn", citesSources: false, query: deepseek });
+  if (process.env.DEEPSEEK_API_KEY) all.push({ id: "deepseek", label: "DeepSeek", region: "cn", citesSources: true, query: deepseek });
   // citesSources: FALSE. It was added on the promise that Hunyuan reports its sources — true of
   // the native API, not of the TokenHub gateway this key belongs to, which 504s on the search
   // parameters and returns zero links. Leaving it true would have put every Yuanbao answer in the

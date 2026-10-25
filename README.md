@@ -39,7 +39,7 @@ npx does-ai-know-you --brand "Sweet Crumb 甜屑" --site sweetcrumb.example \
 | Doubao 豆包 | 5% | 0% |
 | Yuanbao 元宝 | 5% | 0% |
 
-Published with the owner's permission. **Read the Chinese rows carefully:** in this run Qwen, Doubao and Yuanbao answered *without* live web search (it was switched on a few hours later), and DeepSeek's API has no web search at all. So those rows show what the models already knew, while every Western engine searched the web. November's run, with search on for all three, is the fair comparison — we'll update this table.
+Published with the owner's permission. **Read the Chinese rows carefully:** in this run Qwen, Doubao and Yuanbao answered *without* live web search (it was switched on a few hours later), and DeepSeek's API had no web search at all (it got one on 2026-10-17 — the tool now uses it). So those rows show what the models already knew, while every Western engine searched the web. November's run, with search on for all three, is the fair comparison — we'll update this table.
 
 <p align="center"><img src="assets/demo.svg" alt="Terminal: does-ai-know-you run on SAVORHILL, 440 answers" width="100%"></p>
 

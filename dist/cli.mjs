@@ -14,11 +14,13 @@ var engines_exports = {};
 __export(engines_exports, {
   ENGINE_ENDPOINTS: () => ENGINE_ENDPOINTS,
   activeEngines: () => activeEngines,
+  deepseekSearch: () => deepseekSearch,
   grokModel: () => grokModel,
   grokRequestBody: () => grokRequestBody,
   instrumentSwitched: () => instrumentSwitched,
   modelFor: () => modelFor,
-  parseGrok: () => parseGrok
+  parseGrok: () => parseGrok,
+  stripDsml: () => stripDsml
 });
 function instrumentSwitched(next = false) {
   if (next) return true;
@@ -409,6 +411,7 @@ async function kimi(prompt) {
   const MAX_TURNS = 5;
   for (let i = 0; i < MAX_TURNS; i++) {
     const last = i === MAX_TURNS - 1 || Date.now() > loopDeadline;
+    if (last) messages.push({ role: "user", content: ANSWER_NOW });
     const r = await fetchWithTimeout(url, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
@@ -502,18 +505,110 @@ async function hunyuan(prompt) {
   const u = readUsage(d);
   return { text, links, usage: u ? { ...u, searches } : { in: 0, out: 0, searches } };
 }
+async function deepseekSearch(key, query, question) {
+  const body = JSON.stringify({ query: query.trim().slice(0, 128), count: 10, ori_question: question.trim().slice(0, 128) || void 0 });
+  let r;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    r = await fetchWithTimeout(process.env.DEEPSEEK_SEARCH_URL || DEEPSEEK_SEARCH_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body
+    }, 25e3).catch((e) => {
+      if (attempt) throw e;
+      return void 0;
+    });
+    if (r && !(r.status === 408 || r.status === 429 || r.status >= 500)) break;
+    if (!attempt) await new Promise((res) => setTimeout(res, 1500));
+  }
+  if (!r) return { content: JSON.stringify({ error: "search unavailable" }), urls: [], billed: false };
+  if (r.status === 401 || r.status === 402) throw new Error(`DeepSeek search ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  if (!r.ok) return { content: JSON.stringify({ error: `search failed (${r.status})` }), urls: [], billed: false };
+  const d = await r.json();
+  const results = arr(get(d, "results")).slice(0, 10);
+  const urls = [];
+  const compact = results.map((it) => {
+    const url = str(get(it, "url"));
+    if (url && !urls.includes(url)) urls.push(url);
+    return {
+      title: str(get(it, "title")),
+      url,
+      site: str(get(it, "site_name")),
+      date: str(get(it, "date")),
+      text: (str(get(it, "summary")) || str(get(it, "snippet"))).slice(0, 800)
+    };
+  });
+  return { content: JSON.stringify({ results: compact }), urls, billed: results.length > 0 };
+}
 async function deepseek(prompt) {
+  return deepseekWithSearch(prompt);
+}
+function stripDsml(t) {
+  const m = DSML.exec(t);
+  return m ? t.slice(0, m.index).trim() : t;
+}
+async function deepseekWithSearch(prompt) {
   const key = process.env.DEEPSEEK_API_KEY;
   const model = process.env.DEEPSEEK_MODEL || "deepseek-flash";
   const url = process.env.DEEPSEEK_URL || "https://api.deepseek.com/chat/completions";
-  const r = await fetchWithTimeout(url, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: 0.3 })
-  }, SLOW_TIMEOUT_MS.deepseek);
-  if (!r.ok) throw new Error(`DeepSeek ${r.status}: ${(await r.text()).slice(0, 200)}`);
-  const d = await r.json();
-  return { text: str(get(get(arr(get(d, "choices"))[0], "message"), "content")), links: [], usage: readUsage(d) };
+  const tools = [DEEPSEEK_SEARCH_TOOL];
+  const messages = [{ role: "user", content: prompt }];
+  let text = "";
+  const links = [];
+  const loopDeadline = Date.now() + 195e3;
+  let usedIn = 0, usedOut = 0, cached = 0, searches = 0;
+  let served;
+  const MAX_TURNS = 5;
+  for (let i = 0; i < MAX_TURNS; i++) {
+    const left = loopDeadline - Date.now();
+    const last = i === MAX_TURNS - 1 || left < 6e4;
+    const ask = async (body) => {
+      const r = await fetchWithTimeout(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+        body: JSON.stringify({ model, temperature: 0.3, ...body })
+      }, Math.max(2e4, Math.min(SLOW_TIMEOUT_MS.deepseek, loopDeadline + 1e4 - Date.now())));
+      if (!r.ok) throw new Error(`DeepSeek ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      const d2 = await r.json();
+      const u = readUsage(d2);
+      if (u) {
+        usedIn += u.in;
+        usedOut += u.out;
+        cached += u.cached ?? 0;
+        served = served ?? u.model;
+      }
+      return d2;
+    };
+    if (last) messages.push({ role: "user", content: ANSWER_NOW });
+    let d = await ask(last ? { messages, tools, tool_choice: "none" } : { messages, tools });
+    if (last && DSML.test(str(get(get(arr(get(d, "choices"))[0], "message"), "content")))) d = await ask({ messages });
+    const choice = arr(get(d, "choices"))[0];
+    const msg = get(choice, "message");
+    const content = stripDsml(str(get(msg, "content")));
+    if (content) text = content;
+    const calls = arr(get(msg, "tool_calls"));
+    if (last || str(get(choice, "finish_reason")) !== "tool_calls" || !calls.length) break;
+    messages.push(msg);
+    const outs = await Promise.all(calls.map(async (tc) => {
+      const fn = get(tc, "function");
+      let query = "";
+      try {
+        query = str(get(JSON.parse(str(get(fn, "arguments")) || "{}"), "query"));
+      } catch {
+      }
+      const out = query.trim() ? await deepseekSearch(key, query, prompt) : { content: JSON.stringify({ error: "empty query" }), urls: [], billed: false };
+      return { tc, fn, out };
+    }));
+    for (const { tc, fn, out } of outs) {
+      if (out.billed) searches++;
+      for (const l of out.urls) if (!links.includes(l)) links.push(l);
+      messages.push({ role: "tool", tool_call_id: str(get(tc, "id")), name: str(get(fn, "name")) || "web_search", content: out.content });
+    }
+  }
+  return {
+    text,
+    links,
+    ...usedIn + usedOut > 0 || searches ? { usage: { in: usedIn, out: usedOut, ...searches ? { searches } : {}, ...cached ? { cached } : {}, ...served ? { model: served } : {} } } : {}
+  };
 }
 async function doubao(prompt) {
   const key = process.env.ARK_API_KEY;
@@ -603,7 +698,7 @@ function activeEngines(market, opts = {}) {
   if (process.env.META_API_KEY && (instrumentSwitched(next) || opts.probe)) all.push({ id: "muse", label: "Muse", region: "west", citesSources: true, query: muse });
   if (process.env.ARK_API_KEY) all.push({ id: "doubao", label: "\u8C46\u5305", region: "cn", citesSources: true, query: doubao });
   if (process.env.DASHSCOPE_API_KEY) all.push({ id: "qwen", label: "\u901A\u4E49\u5343\u95EE", region: "cn", citesSources: false, query: qwen });
-  if (process.env.DEEPSEEK_API_KEY) all.push({ id: "deepseek", label: "DeepSeek", region: "cn", citesSources: false, query: deepseek });
+  if (process.env.DEEPSEEK_API_KEY) all.push({ id: "deepseek", label: "DeepSeek", region: "cn", citesSources: true, query: deepseek });
   if (process.env.HUNYUAN_API_KEY) all.push({ id: "hunyuan", label: "\u5143\u5B9D", region: "cn", citesSources: true, query: hunyuan });
   if (process.env.MOONSHOT_API_KEY) all.push({ id: "kimi", label: "Kimi", region: "cn", citesSources: false, query: kimi });
   if (process.env.BAIDU_QIANFAN_API_KEY) all.push({ id: "baidu", label: "\u767E\u5EA6", region: "cn", citesSources: true, query: baidu });
@@ -611,7 +706,7 @@ function activeEngines(market, opts = {}) {
   const regions = market === "china" ? ["cn"] : market === "bilingual" ? ["west", "cn"] : ["west"];
   return all.filter((e) => regions.includes(e.region));
 }
-var DEFAULT_TIMEOUT_MS, SLOW_TIMEOUT_MS, GEMINI_REDIRECT, QWEN_SEARCH, KIMI_SEARCH_TOOL, ENGINE_ENDPOINTS;
+var DEFAULT_TIMEOUT_MS, SLOW_TIMEOUT_MS, GEMINI_REDIRECT, QWEN_SEARCH, KIMI_SEARCH_TOOL, DEEPSEEK_SEARCH_URL, DEEPSEEK_SEARCH_TOOL, ANSWER_NOW, DSML, ENGINE_ENDPOINTS;
 var init_engines = __esm({
   "src/engines.ts"() {
     "use strict";
@@ -627,6 +722,17 @@ var init_engines = __esm({
         parameters: { type: "object", properties: { query: { type: "string", description: "The search query" } }, required: ["query"] }
       }
     };
+    DEEPSEEK_SEARCH_URL = "https://api.deepseek.com/v1/tools/search";
+    DEEPSEEK_SEARCH_TOOL = {
+      type: "function",
+      function: {
+        name: "web_search",
+        description: "Search the web for up-to-date information. Use it for anything about specific businesses, places, prices or recent facts.",
+        parameters: { type: "object", properties: { query: { type: "string", description: "The search query (at most 128 characters)" } }, required: ["query"] }
+      }
+    };
+    ANSWER_NOW = "Search limit reached. Answer the original question now, using only the search results above. Do not search again. / \u5DF2\u8FBE\u641C\u7D22\u4E0A\u9650\uFF1A\u8BF7\u76F4\u63A5\u6839\u636E\u4EE5\u4E0A\u641C\u7D22\u7ED3\u679C\u56DE\u7B54\u539F\u95EE\u9898\uFF0C\u4E0D\u8981\u518D\u641C\u7D22\u3002";
+    DSML = /<[｜|]+\s*DSML\s*[｜|]+/;
     ENGINE_ENDPOINTS = {
       openai: process.env.OPENAI_URL || "https://api.openai.com/v1/chat/completions",
       perplexity: process.env.PERPLEXITY_URL || "https://api.perplexity.ai/chat/completions",
