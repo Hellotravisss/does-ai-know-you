@@ -575,6 +575,23 @@ async function doubao(prompt) {
   const d2 = await r2.json();
   return { text: str(get(get(arr(get(d2, "choices"))[0], "message"), "content")), links: [], usage: readUsage(d2) };
 }
+async function baidu(prompt) {
+  const key = process.env.BAIDU_QIANFAN_API_KEY;
+  const model = process.env.BAIDU_MODEL || "ernie-5.1";
+  const r = await fetchWithTimeout(ENGINE_ENDPOINTS.baidu, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: prompt }], model, search_source: "baidu_search_v2", stream: false, enable_deep_search: false })
+  });
+  if (!r.ok) throw new Error(`Baidu ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const d = await r.json();
+  const errMsg = str(get(d, "error_msg")) || str(get(get(d, "error"), "message")) || (get(d, "choices") == null ? str(get(d, "message")) : "");
+  if (errMsg) throw new Error(`Baidu ${str(get(d, "error_code")) || str(get(d, "code")) || "error"}: ${errMsg.slice(0, 200)}`);
+  const text = str(get(get(arr(get(d, "choices"))[0], "message"), "content"));
+  const links = arr(get(d, "references")).map((x) => str(get(x, "url"))).filter(Boolean);
+  const usage = readUsage(d);
+  return { text, links, ...usage ? { usage: { ...usage, searches: 1, model } } : {} };
+}
 function activeEngines(market, opts = {}) {
   const next = !!opts.next;
   const all = [];
@@ -589,6 +606,7 @@ function activeEngines(market, opts = {}) {
   if (process.env.DEEPSEEK_API_KEY) all.push({ id: "deepseek", label: "DeepSeek", region: "cn", citesSources: false, query: deepseek });
   if (process.env.HUNYUAN_API_KEY) all.push({ id: "hunyuan", label: "\u5143\u5B9D", region: "cn", citesSources: true, query: hunyuan });
   if (process.env.MOONSHOT_API_KEY) all.push({ id: "kimi", label: "Kimi", region: "cn", citesSources: false, query: kimi });
+  if (process.env.BAIDU_QIANFAN_API_KEY) all.push({ id: "baidu", label: "\u767E\u5EA6", region: "cn", citesSources: true, query: baidu });
   if (!market) return all;
   const regions = market === "china" ? ["cn"] : market === "bilingual" ? ["west", "cn"] : ["west"];
   return all.filter((e) => regions.includes(e.region));
@@ -620,6 +638,7 @@ var init_engines = __esm({
       deepseek: process.env.DEEPSEEK_URL || "https://api.deepseek.com/chat/completions",
       kimi: process.env.KIMI_URL || "https://api.moonshot.cn/v1/chat/completions",
       hunyuan: process.env.HUNYUAN_URL || "https://tokenhub.tencentmaas.com/v1/chat/completions",
+      baidu: process.env.BAIDU_URL || "https://qianfan.baidubce.com/v2/ai_search/chat/completions",
       muse: process.env.MUSE_URL || "https://api.meta.ai/v1/responses"
     };
   }
@@ -697,7 +716,8 @@ var ENGINE_KEYS = [
   ["kimi", "Kimi", "MOONSHOT_API_KEY"],
   ["qwen", "Qwen \u901A\u4E49", "DASHSCOPE_API_KEY"],
   ["doubao", "Doubao \u8C46\u5305", "ARK_API_KEY"],
-  ["hunyuan", "Yuanbao \u5143\u5B9D", "HUNYUAN_API_KEY"]
+  ["hunyuan", "Yuanbao \u5143\u5B9D", "HUNYUAN_API_KEY"],
+  ["baidu", "Baidu \u767E\u5EA6", "BAIDU_QIANFAN_API_KEY"]
 ];
 var HELP = `does-ai-know-you \u2014 do AI engines recommend your brand?
 
@@ -836,7 +856,7 @@ async function main() {
 Every answer, word for word: ${join(dir, "answers.jsonl")}`);
   console.log(`
 One check is a snapshot \u2014 answers change week to week, and most of what moves them happens off your site.`);
-  console.log(`Track this monthly across 11 engines, with the fixes done for you: https://avowd.ai`);
+  console.log(`Track this monthly across 12 engines, with the fixes done for you: https://avowd.ai`);
 }
 function table(r) {
   const lines = [`"${r.brand}" \u2014 named in how many answers, per engine and question`, ""];
@@ -868,7 +888,7 @@ function report(r) {
     `| --- | ${r.questions.map(() => "---").join(" | ")} | --- | --- |`
   ];
   for (const e of r.engines) md.push(`| ${e.label} | ${e.perQuestion.join(" | ")} | ${e.answered ? pct(e.named, e.answered) + "%" : "failed"} | ${e.answered ? pct(e.linked, e.answered) + "%" : ""} |`);
-  md.push("", ...r.questions.map((q, i) => `- **Q${i + 1}** ${q}`), "", "---", "Made with [does-ai-know-you](https://github.com/Hellotravisss/does-ai-know-you) by [Avowd](https://avowd.ai) \u2014 monthly AI-visibility tracking across 11 engines, Western and Chinese.");
+  md.push("", ...r.questions.map((q, i) => `- **Q${i + 1}** ${q}`), "", "---", "Made with [does-ai-know-you](https://github.com/Hellotravisss/does-ai-know-you) by [Avowd](https://avowd.ai) \u2014 monthly AI-visibility tracking across 12 engines, Western and Chinese.");
   return md.join("\n") + "\n";
 }
 main().catch((e) => {

@@ -4,13 +4,13 @@
 
 <p align="center">
 <img alt="MIT" src="https://img.shields.io/badge/license-MIT-1A1408?style=flat-square">
-<img alt="11 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%205%20Chinese-F0531C?style=flat-square">
+<img alt="12 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%206%20Chinese-F0531C?style=flat-square">
 <img alt="web search on" src="https://img.shields.io/badge/web%20search-on-F7C63F?style=flat-square">
 <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A520-7A6B4C?style=flat-square">
 </p>
 
 
-**Ask ChatGPT, Claude, Gemini, Perplexity, Grok — and DeepSeek, Kimi, Qwen, Doubao, Yuanbao — the questions your customers ask. See which ones name your brand.**
+**Ask ChatGPT, Claude, Gemini, Perplexity, Grok — and DeepSeek, Kimi, Qwen, Doubao, Yuanbao, Baidu — the questions your customers ask. See which ones name your brand.**
 
 [中文说明](README.zh-CN.md)
 
@@ -54,7 +54,7 @@ npx does-ai-know-you --brand "SAVORHILL 山也" --site savorhill.ca \
 
 Most "AI visibility" tools — and most free SEO plugins — score whether your site *looks* citable. That is a guess. This tool asks the engines and records what they actually say, word for word.
 
-And almost none of them ask the **Chinese** engines. If some of your customers ask in Chinese, DeepSeek, Kimi, Qwen, Doubao and Yuanbao are where they ask — and whether they know a North American business is a question you can now answer for yourself instead of guessing.
+And almost none of them ask the **Chinese** engines. If some of your customers ask in Chinese, DeepSeek, Kimi, Qwen, Doubao, Yuanbao and Baidu are where they ask — and whether they know a North American business is a question you can now answer for yourself instead of guessing.
 
 ## What it does
 
@@ -81,6 +81,7 @@ Use your own API keys. Put them in the environment or a `.env` file in the folde
 | Qwen 通义 | `DASHSCOPE_API_KEY` | Alibaba Cloud Model Studio |
 | Doubao 豆包 | `ARK_API_KEY` | Volcengine Ark |
 | Yuanbao 元宝 | `HUNYUAN_API_KEY` | Tencent Cloud |
+| Baidu 百度 | `BAIDU_QIANFAN_API_KEY` | Baidu Qianfan (mainland real-name account; turn on BOTH post-paid switches — tools quota and model service) |
 
 Mainland-China Kimi or Qwen accounts: set `KIMI_URL=https://api.moonshot.cn/v1/chat/completions` or `QWEN_URL=https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions`.
 

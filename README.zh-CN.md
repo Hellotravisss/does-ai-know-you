@@ -4,13 +4,13 @@
 
 <p align="center">
 <img alt="MIT" src="https://img.shields.io/badge/license-MIT-1A1408?style=flat-square">
-<img alt="11 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%205%20Chinese-F0531C?style=flat-square">
+<img alt="12 engines" src="https://img.shields.io/badge/engines-6%20Western%20%2B%206%20Chinese-F0531C?style=flat-square">
 <img alt="web search on" src="https://img.shields.io/badge/web%20search-on-F7C63F?style=flat-square">
 <img alt="node" src="https://img.shields.io/badge/node-%E2%89%A520-7A6B4C?style=flat-square">
 </p>
 
 
-**拿客户真正会问的问题，去问 ChatGPT、Claude、Gemini、Perplexity、Grok，以及 DeepSeek、Kimi、通义千问、豆包、元宝，看哪家 AI 会推荐你的品牌。**
+**拿客户真正会问的问题，去问 ChatGPT、Claude、Gemini、Perplexity、Grok，以及 DeepSeek、Kimi、通义千问、豆包、元宝、百度，看哪家 AI 会推荐你的品牌。**
 
 [English](README.md)
 
@@ -54,7 +54,7 @@ npx does-ai-know-you --brand "SAVORHILL 山也" --site savorhill.ca \
 
 大多数「AI 可见度」工具，包括免费的 SEO 插件，都是看你的网站「像不像会被引用」，然后打个分。那是猜的。这个工具直接去问 AI，原话照录。
 
-而且几乎没有工具去问**中文 AI**。你的客人里只要有人用中文问，DeepSeek、Kimi、通义、豆包、元宝就是他们问的地方。它们认不认识一家北美商家，现在你可以自己查，不用再猜。
+而且几乎没有工具去问**中文 AI**。你的客人里只要有人用中文问，DeepSeek、Kimi、通义、豆包、元宝、百度就是他们问的地方。它们认不认识一家北美商家，现在你可以自己查，不用再猜。
 
 ## 它做什么
 

@@ -35,7 +35,7 @@ const ENGINE_KEYS: [string, string, string][] = [
   ["grok", "Grok", "XAI_API_KEY"], ["muse", "Muse (Meta)", "META_API_KEY"],
   ["deepseek", "DeepSeek", "DEEPSEEK_API_KEY"], ["kimi", "Kimi", "MOONSHOT_API_KEY"],
   ["qwen", "Qwen 通义", "DASHSCOPE_API_KEY"], ["doubao", "Doubao 豆包", "ARK_API_KEY"],
-  ["hunyuan", "Yuanbao 元宝", "HUNYUAN_API_KEY"],
+  ["hunyuan", "Yuanbao 元宝", "HUNYUAN_API_KEY"], ["baidu", "Baidu 百度", "BAIDU_QIANFAN_API_KEY"],
 ];
 
 const HELP = `does-ai-know-you — do AI engines recommend your brand?
@@ -163,7 +163,7 @@ async function main() {
   console.log("\n" + table(result));
   console.log(`\nEvery answer, word for word: ${join(dir, "answers.jsonl")}`);
   console.log(`\nOne check is a snapshot — answers change week to week, and most of what moves them happens off your site.`);
-  console.log(`Track this monthly across 11 engines, with the fixes done for you: https://avowd.ai`);
+  console.log(`Track this monthly across 12 engines, with the fixes done for you: https://avowd.ai`);
 }
 
 type Result = { brand: string; questions: string[]; reps: number; engines: { label: string; region: string; answered: number; asked: number; named: number; linked: number; perQuestion: string[]; error?: string }[] };
@@ -191,7 +191,7 @@ function report(r: Result): string {
     `| Engine | ${r.questions.map((_, i) => `Q${i + 1}`).join(" | ")} | Named | Links to site |`,
     `| --- | ${r.questions.map(() => "---").join(" | ")} | --- | --- |`];
   for (const e of r.engines) md.push(`| ${e.label} | ${e.perQuestion.join(" | ")} | ${e.answered ? pct(e.named, e.answered) + "%" : "failed"} | ${e.answered ? pct(e.linked, e.answered) + "%" : ""} |`);
-  md.push("", ...r.questions.map((q, i) => `- **Q${i + 1}** ${q}`), "", "---", "Made with [does-ai-know-you](https://github.com/Hellotravisss/does-ai-know-you) by [Avowd](https://avowd.ai) — monthly AI-visibility tracking across 11 engines, Western and Chinese.");
+  md.push("", ...r.questions.map((q, i) => `- **Q${i + 1}** ${q}`), "", "---", "Made with [does-ai-know-you](https://github.com/Hellotravisss/does-ai-know-you) by [Avowd](https://avowd.ai) — monthly AI-visibility tracking across 12 engines, Western and Chinese.");
   return md.join("\n") + "\n";
 }
 

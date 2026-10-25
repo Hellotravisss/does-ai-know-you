@@ -835,6 +835,31 @@ async function doubao(prompt: string): Promise<EngineAnswer> {
  *
  * ⚠️ Keep in sync with the query functions below. They read the same env vars.
  */
+/* ── 百度 Baidu — 千帆「智能搜索生成」(Qianfan AI Search) ─────────────────────────────────────
+ * POST https://qianfan.baidubce.com/v2/ai_search/chat/completions  Authorization: Bearer <key>
+ * Baidu web search + an ERNIE model in one call; answer → choices[0].message.content,
+ * sources → references[].url. Needs a mainland-verified Qianfan account with BOTH post-paid
+ * switches on (tools quota + model service) — with only one, every call is "account_overdue".
+ * Deep search stays off: it fans out into up to 10 billed calls. */
+async function baidu(prompt: string): Promise<EngineAnswer> {
+  const key = process.env.BAIDU_QIANFAN_API_KEY as string;
+  const model = process.env.BAIDU_MODEL || "ernie-5.1";
+  const r = await fetchWithTimeout(ENGINE_ENDPOINTS.baidu, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: prompt }], model, search_source: "baidu_search_v2", stream: false, enable_deep_search: false }),
+  });
+  if (!r.ok) throw new Error(`Baidu ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const d: unknown = await r.json();
+  // Errors can arrive as HTTP 200: {error_code,error_msg}, {error:{message}} or {code,message}.
+  const errMsg = str(get(d, "error_msg")) || str(get(get(d, "error"), "message")) || (get(d, "choices") == null ? str(get(d, "message")) : "");
+  if (errMsg) throw new Error(`Baidu ${str(get(d, "error_code")) || str(get(d, "code")) || "error"}: ${errMsg.slice(0, 200)}`);
+  const text = str(get(get(arr(get(d, "choices"))[0], "message"), "content"));
+  const links = arr(get(d, "references")).map((x) => str(get(x, "url"))).filter(Boolean);
+  const usage = readUsage(d);
+  return { text, links, ...(usage ? { usage: { ...usage, searches: 1, model } } : {}) };
+}
+
 export const ENGINE_ENDPOINTS: Record<string, string> = {
   openai: process.env.OPENAI_URL || "https://api.openai.com/v1/chat/completions",
   perplexity: process.env.PERPLEXITY_URL || "https://api.perplexity.ai/chat/completions",
@@ -846,6 +871,7 @@ export const ENGINE_ENDPOINTS: Record<string, string> = {
   deepseek: process.env.DEEPSEEK_URL || "https://api.deepseek.com/chat/completions",
   kimi: process.env.KIMI_URL || "https://api.moonshot.cn/v1/chat/completions",
   hunyuan: process.env.HUNYUAN_URL || "https://tokenhub.tencentmaas.com/v1/chat/completions",
+  baidu: process.env.BAIDU_URL || "https://qianfan.baidubce.com/v2/ai_search/chat/completions",
   muse: process.env.MUSE_URL || "https://api.meta.ai/v1/responses",
 };
 
@@ -874,6 +900,7 @@ export function activeEngines(market?: string, opts: { next?: boolean; probe?: b
   // bilingual client — the exact failure the CN engines are excluded to avoid.
   if (process.env.HUNYUAN_API_KEY) all.push({ id: "hunyuan", label: "元宝", region: "cn", citesSources: true, query: hunyuan });
   if (process.env.MOONSHOT_API_KEY) all.push({ id: "kimi", label: "Kimi", region: "cn", citesSources: false, query: kimi });
+  if (process.env.BAIDU_QIANFAN_API_KEY) all.push({ id: "baidu", label: "百度", region: "cn", citesSources: true, query: baidu });
   if (!market) return all;
   const regions: ("west" | "cn")[] = market === "china" ? ["cn"] : market === "bilingual" ? ["west", "cn"] : ["west"];
   return all.filter((e) => regions.includes(e.region));
